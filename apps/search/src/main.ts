@@ -1,8 +1,34 @@
 import { NestFactory } from '@nestjs/core';
 import { SearchModule } from './search.module';
+import { Logger } from '@nestjs/common';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
 async function bootstrap() {
-  const app = await NestFactory.create(SearchModule);
-  await app.listen(process.env.port ?? 3000);
+  process.title = 'Search';
+  const logger = new Logger('SearchService');
+
+  const rmqlUrl = process.env.RABBITMQ_URL ?? "amqp://localhost:5672";
+  const queue = process.env.CATALOG_QUEUE ?? "search_queue";
+
+  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
+    SearchModule,
+    {
+      transport: Transport.RMQ,
+      options: {
+        urls: [rmqlUrl],
+        queue,
+        queueOptions: {
+          durable: false
+        }
+      },
+    }
+  );
+
+  app.enableShutdownHooks();
+
+  await app.listen();
+
+  logger.log(`Search microservice(RMQ) listening on queue ${queue} via ${rmqlUrl}`);
 }
+
 bootstrap();
